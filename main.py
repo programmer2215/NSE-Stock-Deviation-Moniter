@@ -5,6 +5,7 @@ from tkinter import messagebox
 import database as db
 import tkcalendar as tkcal 
 from datetime import datetime
+from dateutil.relativedelta import relativedelta, FR
 import datetime as dt
 import pyperclip
 import threading
@@ -12,6 +13,10 @@ import threading
 
 FONT = ('Helvetica', 13)
 today = datetime.today().strftime("%Y-%m-%d")
+day = datetime.strptime(today, "%Y-%m-%d").strftime("%A")
+if day in ["Saturday", "Sunday"]:
+    today = (datetime.now() + relativedelta(weekday=FR(-1))).strftime("%Y-%m-%d")
+print(today)
 
 
 
@@ -22,7 +27,7 @@ print("SUCCESSFULLY LOADED")'''
 root = tk.Tk()
 root.title("Deviation Calculator")
 
-LAST_UPDATED = db.connect_to_sqlite(db.get_last_date, "ADANIPOWER")
+LAST_UPDATED = db.connect_to_sqlite(db.get_last_date, "ZYDUSWELL")
 Last_updated_var = tk.StringVar(value=f"Last Updated: {LAST_UPDATED}")
 Last_updated_lab = tk.Label(root, textvariable=Last_updated_var, font=("Helvetica", 13))
 Last_updated_lab.pack()

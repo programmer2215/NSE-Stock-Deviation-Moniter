@@ -1,3 +1,4 @@
+from cmath import e
 from re import L
 import sqlite3 as sql
 from nsepy import get_history
@@ -9,10 +10,15 @@ def connect_to_sqlite(func, *args):
     '''Sqlite Connection Wrapper'''
     conn = sql.connect('StocksData.sqlite')
     cur = conn.cursor()
-    return_val = func(cur, *args) # if it even returns something...
-    conn.commit()
-    conn.close()
-
+    try:
+        return_val = func(conn, cur, *args) # if it even returns something...
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(str(e))
+        conn.commit()
+        conn.close()
+        print("[Database Connection Commited]")
     return return_val
 
 def getStockData(stock, start, end):
@@ -36,7 +42,7 @@ def get_sector_info():
 def valid(cur_date, last_date):
     return datetime.strptime(cur_date, "%Y-%m-%d") > datetime.strptime(last_date, "%Y-%m-%d")
 
-def ON_CREATE(cur, start, end):
+def ON_CREATE(conn, cur, start, end):
     with open("stocks.txt") as f:
         for table_name in f:
             table_name = table_name.strip()
@@ -52,11 +58,11 @@ CREATE TABLE IF NOT EXISTS "{table_name}"(
             cur.execute(SQL)
             
             for j,k,l,m in zip(data.index, data.Open, data.High, data.Low):
-                add_record(cur, table_name, j, k, l, m)
+                add_record(conn, cur, table_name, j, k, l, m)
             print(f"[{table_name}] up to date")
 
 
-def get_last_date(cur, stock):
+def get_last_date(conn, cur, stock):
     SQL = f"""SELECT Date FROM "{stock}" ORDER BY Date DESC LIMIT 1;"""
     cur.execute(SQL)
     LAST_DATE = cur.fetchone()
@@ -65,9 +71,9 @@ def get_last_date(cur, stock):
     except TypeError:
         print(stock)
 
-def add_record(cur, stock, date, open, high, low, cycle=False, validate=False):
+def add_record(conn, cur, stock, date, open, high, low, cycle=False, validate=False):
     if validate:
-        LAST_DATE = get_last_date(cur, stock)
+        LAST_DATE = get_last_date(conn, cur, stock)
         if not valid(date, LAST_DATE):
             return
     SQL = f"""INSERT INTO "{stock}" (Date, Open, High, Low) VALUES ('{date}', '{open}', '{high}', '{low}');"""
@@ -76,7 +82,7 @@ def add_record(cur, stock, date, open, high, low, cycle=False, validate=False):
         SQL = f"""DELETE FROM "{stock}" WHERE Date = (SELECT min(Date) FROM {stock});"""
         cur.execute(SQL)
 
-def get_beta_and_sector(cur, start, end):
+def get_beta_and_sector(conn, cur, start, end):
 
     results = []
     with open("stocks.txt", "r") as f:
@@ -101,17 +107,19 @@ def get_beta_and_sector(cur, start, end):
             results.append({"Symbol":stock, "Sector":open_val, "Beta": beta})
     return results
 
-def update_data(cur, now):
+def update_data(conn, cur, now):
     with open("stocks.txt") as f:
         for stock in f:
             stock = stock.strip()
             print(stock)
-            last = get_last_date(cur, stock)
+            last = get_last_date(conn, cur, stock)
             day = datetime.strptime(now, "%Y-%m-%d").strftime("%A")
-            if last != now or day not in ["Saturday", "Sunday"]:
-                data = getStockData(stock, last, now)
-                for j,k,l,m in zip(data.index, data.Open, data.High, data.Low):
-                    add_record(cur, stock, str(j), k, l, m, validate=True)
+            if last != now:
+                if day not in ["Saturday", "Sunday"]:
+                    data = getStockData(stock, last, now)
+                    for j,k,l,m in zip(data.index, data.Open, data.High, data.Low):
+                        add_record(conn, cur, stock, str(j), k, l, m, validate=True)
+            
     print("Stock data updated successfully!!")
 
 
